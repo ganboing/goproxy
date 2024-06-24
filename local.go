@@ -160,12 +160,6 @@ retry_refspec:
 			return archiveTmp, nil
 		}
 		// Fourth pass (optional): try to add LICENSE file from parent repo if missing
-		cmd, out, err := getGitOutputCmd(
-			context.Background(), gitdir, "archive", "--format=tar", refspec+"^{tree}", "LICENSE")
-		if err != nil {
-			return nil, errors.New(fmt.Sprintf("failed to run git archive (LICENSE) %s: %s", refspec, err.Error()))
-		}
-		defer out.Close()
 		licDir := path.Join(".tmp/licenses", prefix)
 		os.MkdirAll(licDir, 0700)
 		licPath := path.Join(licDir, "LICENSE")
@@ -177,7 +171,15 @@ retry_refspec:
 				return nil, errors.New(fmt.Sprintf("failed to create temp file (LICENSE): %s", err.Error()))
 			}
 			defer licenseTmp.Close()
+			cmd, out, err := getGitOutputCmd(
+				context.Background(), gitdir, "archive", "--format=tar", refspec+"^{tree}", "LICENSE")
+			if err != nil {
+				return nil, errors.New(fmt.Sprintf("failed to run git archive (LICENSE) %s: %s", refspec, err.Error()))
+			}
+			defer out.Close()
 			err = copySingleFileFromTar(out, licenseTmp, "LICENSE", tar.TypeReg)
+			// error is ignored. Rely on copySingleFileFromTar to tell if file exists or not
+			cmd.Wait()
 			if err != nil {
 				loggerYellow.Printf("serveModGit: LICENSE file not found for %s (ignored)"+LOG_RST, modulePath)
 				return archiveTmp, nil
